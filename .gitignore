@@ -6,6 +6,11 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+.buildenv/
+
+# Windows packaging artifacts
+build_artifacts/
+*.spec
 
 # Generated subtitle exports and local logs
 *.ass

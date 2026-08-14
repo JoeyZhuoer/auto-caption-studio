@@ -6,6 +6,7 @@ import os
 import queue
 import re
 import shutil
+import sys
 import threading
 from datetime import datetime
 from dataclasses import dataclass
@@ -18,7 +19,10 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 
-APP_DIR = Path(__file__).resolve().parent
+# A frozen Windows build runs from an unpacked executable directory.  Keep
+# user-created settings and caption projects there instead of PyInstaller's
+# temporary runtime directory.
+APP_DIR = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent
 ENV_FILE = APP_DIR / ".env"
 DOWNLOADS_DIR = APP_DIR / "downloads"
 OUTPUT_DIR = APP_DIR / "output"
