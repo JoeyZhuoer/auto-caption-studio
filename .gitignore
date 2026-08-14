@@ -1,0 +1,15 @@
+# Local configuration — may contain a personal API key.
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Generated subtitle exports and local logs
+*.ass
+*.srt
+*.log
+downloads/
+output/
