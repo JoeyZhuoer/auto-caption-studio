@@ -66,7 +66,7 @@ UI_TEXT = {
         "missing_settings": "Missing settings", "base_model_required": "Base URL and model are required.", "saved": "Settings saved locally to .env (ignored by Git).",
         "choose_video_title": "Select video", "choose_video_error": "Choose a video", "choose_video_error_text": "Please choose an existing video file first.",
         "video_file": "Video file", "video_url": "Video URL", "download_video": "Download video", "download_note": "Supports public video URLs handled by yt-dlp (for example YouTube and Bilibili). Download only content you own or are allowed to use.",
-        "url_error": "Enter a valid video URL starting with http:// or https://.", "downloading": "Downloading video…", "downloaded": "Video downloaded", "download_error": "Download failed", "youtube_403": "YouTube rejected the download (HTTP 403). Update yt-dlp, then retry. If you can view this video while signed in to a browser, select that browser under Settings → Browser cookies and retry.",
+        "url_error": "Enter a valid video URL starting with http:// or https://.", "downloading": "Downloading video…", "downloaded": "Video downloaded", "download_error": "Download failed", "youtube_403": "YouTube rejected the download (HTTP 403). Update Auto Caption Studio to the latest version and retry. Some videos can remain unavailable to automated downloading; use an authorized local video file in that case.",
         "configure_translation": "Configure translation", "configure_translation_text": "Open Settings and enter your API key, or select Ollama for a local model.",
         "loading": "Loading Whisper model…", "transcribing": "Transcribing locally with Whisper…", "canceling": "Cancelling after the current step…", "cancel_requested": "Cancellation requested.",
         "completed": "Completed", "stopped": "Stopped", "captions_created": "Captions created", "saved_caption": "Subtitle file saved:", "transcribe_first": "Create Whisper captions first", "transcribe_first_text": "First select a video and create the Whisper-timed captions. Then you can translate the current captions.", "whisper_completed": "Whisper captions created", "translation_completed": "Bilingual captions created", "cuda_unavailable": "NVIDIA CUDA could not start. Install the matching NVIDIA CUDA runtime and try again.",
@@ -82,7 +82,7 @@ UI_TEXT = {
         "missing_settings": "设置不完整", "base_model_required": "需要填写基础 URL 和模型。", "saved": "设置已保存到本机 .env（Git 会忽略该文件）。",
         "choose_video_title": "选择视频", "choose_video_error": "请选择视频", "choose_video_error_text": "请先选择一个存在的视频文件。",
         "video_file": "视频文件", "video_url": "视频链接", "download_video": "下载视频", "download_note": "支持 yt-dlp 可处理的公开视频链接（例如 YouTube、哔哩哔哩）。请只下载你拥有或获准使用的内容。",
-        "url_error": "请输入以 http:// 或 https:// 开头的有效视频链接。", "downloading": "正在下载视频…", "downloaded": "视频已下载", "download_error": "下载失败", "youtube_403": "YouTube 拒绝了下载请求（HTTP 403）。请先更新 yt-dlp 后重试。如果你可以在已登录的浏览器中观看此视频，请在“设置 → 下载视频时使用的浏览器 Cookie”中选择该浏览器后重试。",
+        "url_error": "请输入以 http:// 或 https:// 开头的有效视频链接。", "downloading": "正在下载视频…", "downloaded": "视频已下载", "download_error": "下载失败", "youtube_403": "YouTube 拒绝了下载请求（HTTP 403）。请更新 Auto Caption Studio 到最新版本后重试。某些视频可能仍不允许自动下载；这种情况下请使用已获授权的本地视频文件。",
         "configure_translation": "配置翻译", "configure_translation_text": "请在“设置”中填写自己的 API 密钥，或选择本地 Ollama 模型。",
         "loading": "正在加载 Whisper 模型…", "transcribing": "正在使用 Whisper 本地转录…", "canceling": "将在当前步骤完成后取消…", "cancel_requested": "已请求取消。",
         "completed": "已完成", "stopped": "已停止", "captions_created": "字幕已生成", "saved_caption": "字幕文件已保存：", "transcribe_first": "请先生成 Whisper 字幕", "transcribe_first_text": "请先选择视频并生成带时间轴的 Whisper 字幕，然后再翻译当前字幕。", "whisper_completed": "Whisper 字幕已生成", "translation_completed": "双语字幕已生成", "cuda_unavailable": "NVIDIA CUDA 无法启动。请安装匹配的 NVIDIA CUDA 运行时后重试。",
@@ -282,6 +282,19 @@ def clean_download_percent(value: object) -> str:
     plain = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", str(value))
     match = re.search(r"\d+(?:\.\d+)?%", plain)
     return match.group(0) if match else ""
+
+
+def clean_terminal_text(value: object) -> str:
+    """Remove terminal formatting before showing a yt-dlp error in the GUI."""
+    return re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", str(value)).strip()
+
+
+def bundled_deno_path() -> Path | None:
+    """Return the Deno runtime packaged beside the Windows application."""
+    for candidate in (APP_DIR / "deno.exe", APP_DIR / "_internal" / "deno.exe"):
+        if candidate.is_file():
+            return candidate
+    return None
 
 
 def parse_ass_time(value: str) -> float:
@@ -673,8 +686,11 @@ class CaptionApp(tk.Tk):
                 "no_warnings": True,
                 "logger": DownloadLogger(),
                 "progress_hooks": [progress_hook],
-                "force_ipv4": True,
             }
+            if deno_path := bundled_deno_path():
+                # Current yt-dlp YouTube support requires an external JS
+                # runtime. The portable Windows build includes Deno.
+                options["js_runtimes"] = {"deno": {"path": str(deno_path)}}
             cookies_browser = SettingsStore.load()["YTDLP_COOKIES_BROWSER"].strip()
             if cookies_browser:
                 options["cookiesfrombrowser"] = (cookies_browser,)
@@ -688,7 +704,7 @@ class CaptionApp(tk.Tk):
             video = max(media_files, key=lambda path: path.stat().st_mtime)
             self.events.put(("downloaded", video))
         except Exception as exc:
-            message = str(exc)
+            message = clean_terminal_text(exc)
             if "HTTP Error 403" in message and ("youtube" in url.lower() or "youtu.be" in url.lower()):
                 message = self.t("youtube_403") + "\n\nDetails: " + message
             self.events.put(("download_error", message))

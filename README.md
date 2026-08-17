@@ -73,12 +73,13 @@ Extract the entire archive, keep the `AutoCaptionStudio` folder intact, and run
 `AutoCaptionStudio.exe`. Do not move the executable out of that folder: its
 included runtime files live in the `_internal` directory beside it.
 
-The portable build includes the Python application and its Python
-dependencies, but it does not include Whisper models or NVIDIA's system CUDA
-libraries. The first transcription downloads the selected Whisper model. CUDA
-12.x and compatible cuDNN are still needed for GPU transcription as described
-below. Some video sites also require a local FFmpeg installation for `yt-dlp`
-to merge separate audio and video streams.
+The portable build includes the Python application, yt-dlp's YouTube EJS
+component, and the Deno JavaScript runtime required by current yt-dlp YouTube
+support. It does not include Whisper models or NVIDIA's system CUDA libraries.
+The first transcription downloads the selected Whisper model. CUDA 12.x and
+compatible cuDNN are still needed for GPU transcription as described below.
+Some video sites also require a local FFmpeg installation for `yt-dlp` to
+merge separate audio and video streams.
 
 For a typical OpenAI-compatible service, keep the provider as **OpenAI-compatible**, choose a model, and paste the service key in Settings. For Ollama, select **Ollama** and use a local model such as `qwen2.5:7b`; no API key is normally needed.
 
