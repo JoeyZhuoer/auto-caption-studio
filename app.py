@@ -6,6 +6,7 @@ import os
 import queue
 import re
 import shutil
+import subprocess
 import sys
 import threading
 from datetime import datetime
@@ -53,7 +54,6 @@ UI_LANGUAGE_TARGETS = {
     "ja": "Japanese",
     "es": "Spanish",
 }
-COOKIE_BROWSER_OPTIONS = {"None (public videos only)": "", "Chrome": "chrome", "Edge": "edge", "Firefox": "firefox", "Brave": "brave", "Opera": "opera"}
 UI_TEXT = {
     "en": {
         "app_title": "Auto Caption Studio", "settings": "⚙ Settings", "subtitle": "Whisper transcription + your chosen LLM translation → bilingual Aegisub subtitles",
@@ -62,7 +62,7 @@ UI_TEXT = {
         "preview": "Caption preview", "start": "Start", "end": "End", "original": "Original (Whisper)", "translation": "Translation",
         "ready": "Choose a video, then click Create captions.", "initial_log": "Ready. Open Settings to configure a translation provider.",
         "auto_detect": "Auto detect", "settings_title": "LLM Settings", "provider": "Provider", "base_url": "Base URL", "model": "Model",
-        "api_key": "API key", "ui_language": "Interface language", "browser_cookies": "Browser cookies for video downloads", "cookies_help": "Optional: select a browser only for videos you can access there. The app does not copy or save cookies; yt-dlp reads the current local browser session only while downloading.", "save": "Save locally", "close": "Cancel",
+        "api_key": "API key", "ui_language": "Interface language", "save": "Save locally", "close": "Cancel",
         "missing_settings": "Missing settings", "base_model_required": "Base URL and model are required.", "saved": "Settings saved locally to .env (ignored by Git).",
         "choose_video_title": "Select video", "choose_video_error": "Choose a video", "choose_video_error_text": "Please choose an existing video file first.",
         "video_file": "Video file", "video_url": "Video URL", "download_video": "Download video", "download_note": "Supports public video URLs handled by yt-dlp (for example YouTube and Bilibili). Download only content you own or are allowed to use.",
@@ -78,7 +78,7 @@ UI_TEXT = {
         "preview": "字幕预览", "start": "开始", "end": "结束", "original": "原文（Whisper）", "translation": "译文",
         "ready": "选择视频后，点击“生成双语 .ass 字幕”。", "initial_log": "准备就绪。请打开“设置”配置翻译服务。",
         "auto_detect": "自动检测", "settings_title": "LLM 设置", "provider": "服务商", "base_url": "基础 URL", "model": "模型",
-        "api_key": "API 密钥", "ui_language": "界面语言", "browser_cookies": "下载视频时使用的浏览器 Cookie", "cookies_help": "可选：只针对你可在该浏览器中访问的视频选择浏览器。应用不会复制或保存 Cookie；yt-dlp 只会在下载时读取当前本地浏览器会话。", "save": "保存到本机", "close": "取消",
+        "api_key": "API 密钥", "ui_language": "界面语言", "save": "保存到本机", "close": "取消",
         "missing_settings": "设置不完整", "base_model_required": "需要填写基础 URL 和模型。", "saved": "设置已保存到本机 .env（Git 会忽略该文件）。",
         "choose_video_title": "选择视频", "choose_video_error": "请选择视频", "choose_video_error_text": "请先选择一个存在的视频文件。",
         "video_file": "视频文件", "video_url": "视频链接", "download_video": "下载视频", "download_note": "支持 yt-dlp 可处理的公开视频链接（例如 YouTube、哔哩哔哩）。请只下载你拥有或获准使用的内容。",
@@ -94,11 +94,11 @@ UI_TEXT = {
         "preview": "字幕プレビュー", "start": "開始", "end": "終了", "original": "原文（Whisper）", "translation": "翻訳",
         "ready": "動画を選択してから、字幕作成をクリックしてください。", "initial_log": "準備完了。設定から翻訳プロバイダーを設定してください。",
         "auto_detect": "自動検出", "settings_title": "LLM 設定", "provider": "プロバイダー", "base_url": "ベース URL", "model": "モデル",
-        "api_key": "API キー", "ui_language": "表示言語", "browser_cookies": "動画ダウンロード用ブラウザ Cookie", "cookies_help": "任意：そのブラウザでアクセスできる動画だけにブラウザを選択してください。アプリは Cookie をコピー・保存せず、ダウンロード中に現在のローカルブラウザセッションだけを読み取ります。", "save": "ローカルに保存", "close": "キャンセル",
+        "api_key": "API キー", "ui_language": "表示言語", "save": "ローカルに保存", "close": "キャンセル",
         "missing_settings": "設定が不足しています", "base_model_required": "ベース URL とモデルが必要です。", "saved": "設定をローカルの .env に保存しました（Git では無視されます）。",
         "choose_video_title": "動画を選択", "choose_video_error": "動画を選択", "choose_video_error_text": "存在する動画ファイルを選択してください。",
         "video_file": "動画ファイル", "video_url": "動画 URL", "download_video": "動画をダウンロード", "download_note": "yt-dlp が対応する公開動画 URL（YouTube、Bilibili など）に対応しています。所有または利用許可のあるコンテンツのみダウンロードしてください。",
-        "url_error": "http:// または https:// で始まる有効な動画 URL を入力してください。", "downloading": "動画をダウンロード中…", "downloaded": "動画をダウンロードしました", "download_error": "ダウンロードに失敗しました", "youtube_403": "YouTube がダウンロードを拒否しました（HTTP 403）。yt-dlp を更新して再試行してください。ログイン済みブラウザで動画を視聴できる場合は、「設定 → 動画ダウンロード用ブラウザ Cookie」でそのブラウザを選択して再試行してください。",
+        "url_error": "http:// または https:// で始まる有効な動画 URL を入力してください。", "downloading": "動画をダウンロード中…", "downloaded": "動画をダウンロードしました", "download_error": "ダウンロードに失敗しました", "youtube_403": "YouTube がダウンロードを拒否しました（HTTP 403）。Auto Caption Studio を最新版に更新して再試行してください。一部の動画は自動ダウンロードできない場合があります。その場合は、使用許可のあるローカル動画ファイルを使用してください。",
         "configure_translation": "翻訳を設定", "configure_translation_text": "設定で自分の API キーを入力するか、ローカル Ollama モデルを選択してください。",
         "loading": "Whisper モデルを読み込み中…", "transcribing": "Whisper でローカル文字起こし中…", "canceling": "現在の処理後にキャンセルします…", "cancel_requested": "キャンセルを要求しました。",
         "completed": "完了", "stopped": "停止", "captions_created": "字幕を作成しました", "saved_caption": "字幕ファイルを保存しました：", "transcribe_first": "最初に Whisper 字幕を作成", "transcribe_first_text": "先に動画を選択してタイミング付き Whisper 字幕を作成してから、現在の字幕を翻訳してください。", "whisper_completed": "Whisper 字幕を作成しました", "translation_completed": "二言語字幕を作成しました", "cuda_unavailable": "NVIDIA CUDA を開始できません。対応する NVIDIA CUDA ランタイムをインストールして再試行してください。",
@@ -110,11 +110,11 @@ UI_TEXT = {
         "preview": "Vista previa", "start": "Inicio", "end": "Fin", "original": "Original (Whisper)", "translation": "Traducción",
         "ready": "Elige un vídeo y luego pulsa Crear subtítulos.", "initial_log": "Listo. Abre Ajustes para configurar el proveedor de traducción.",
         "auto_detect": "Detectar automáticamente", "settings_title": "Ajustes del LLM", "provider": "Proveedor", "base_url": "URL base", "model": "Modelo",
-        "api_key": "Clave API", "ui_language": "Idioma de la interfaz", "browser_cookies": "Cookies del navegador para descargas", "cookies_help": "Opcional: selecciona un navegador solo para vídeos a los que puedas acceder allí. La aplicación no copia ni guarda cookies; yt-dlp solo lee la sesión local actual durante la descarga.", "save": "Guardar localmente", "close": "Cancelar",
+        "api_key": "Clave API", "ui_language": "Idioma de la interfaz", "save": "Guardar localmente", "close": "Cancelar",
         "missing_settings": "Faltan ajustes", "base_model_required": "Se requieren la URL base y el modelo.", "saved": "Ajustes guardados en .env local (Git lo ignora).",
         "choose_video_title": "Seleccionar vídeo", "choose_video_error": "Elige un vídeo", "choose_video_error_text": "Primero selecciona un archivo de vídeo existente.",
         "video_file": "Archivo de vídeo", "video_url": "URL del vídeo", "download_video": "Descargar vídeo", "download_note": "Admite URL públicas que maneja yt-dlp (por ejemplo, YouTube y Bilibili). Descarga solo contenido propio o autorizado.",
-        "url_error": "Introduce una URL de vídeo válida que empiece por http:// o https://.", "downloading": "Descargando vídeo…", "downloaded": "Vídeo descargado", "download_error": "Error de descarga", "youtube_403": "YouTube rechazó la descarga (HTTP 403). Actualiza yt-dlp e inténtalo de nuevo. Si puedes ver el vídeo con sesión iniciada en un navegador, selecciónalo en Ajustes → Cookies del navegador y vuelve a intentarlo.",
+        "url_error": "Introduce una URL de vídeo válida que empiece por http:// o https://.", "downloading": "Descargando vídeo…", "downloaded": "Vídeo descargado", "download_error": "Error de descarga", "youtube_403": "YouTube rechazó la descarga (HTTP 403). Actualiza Auto Caption Studio e inténtalo de nuevo. Algunos vídeos pueden seguir sin admitir descargas automatizadas; en ese caso, utiliza un archivo local autorizado.",
         "configure_translation": "Configurar traducción", "configure_translation_text": "Abre Ajustes e introduce tu clave API, o elige Ollama para un modelo local.",
         "loading": "Cargando modelo Whisper…", "transcribing": "Transcribiendo localmente con Whisper…", "canceling": "Se cancelará tras el paso actual…", "cancel_requested": "Cancelación solicitada.",
         "completed": "Completado", "stopped": "Detenido", "captions_created": "Subtítulos creados", "saved_caption": "Archivo de subtítulos guardado:", "transcribe_first": "Primero crea los subtítulos Whisper", "transcribe_first_text": "Primero elige un vídeo y crea los subtítulos Whisper con tiempos. Luego podrás traducir los subtítulos actuales.", "whisper_completed": "Subtítulos Whisper creados", "translation_completed": "Subtítulos bilingües creados", "cuda_unavailable": "No se pudo iniciar NVIDIA CUDA. Instala el tiempo de ejecución de NVIDIA CUDA correspondiente e inténtalo de nuevo.",
@@ -138,7 +138,6 @@ class SettingsStore:
         "LLM_API_KEY": "",
         "LLM_USER_PROMPT": "",
         "UI_LANGUAGE": "en",
-        "YTDLP_COOKIES_BROWSER": "",
         "DOWNLOAD_DISCLAIMER_ACKNOWLEDGED": "0",
     }
 
@@ -289,9 +288,28 @@ def clean_terminal_text(value: object) -> str:
     return re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", str(value)).strip()
 
 
+def bundled_yt_dlp_path() -> Path:
+    """Return the standalone yt-dlp executable shipped with the app."""
+    candidates = (
+        APP_DIR / "yt-dlp.exe",
+        APP_DIR / "tools" / "yt-dlp.exe",
+        APP_DIR / "_internal" / "yt-dlp.exe",
+    )
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    raise FileNotFoundError(
+        "The bundled downloader was not found. Keep yt-dlp.exe in the app's tools folder."
+    )
+
+
 def bundled_deno_path() -> Path | None:
     """Return the Deno runtime packaged beside the Windows application."""
-    for candidate in (APP_DIR / "deno.exe", APP_DIR / "_internal" / "deno.exe"):
+    for candidate in (
+        APP_DIR / "deno.exe",
+        APP_DIR / "tools" / "deno.exe",
+        APP_DIR / "_internal" / "deno.exe",
+    ):
         if candidate.is_file():
             return candidate
     return None
@@ -392,7 +410,6 @@ class SettingsDialog(tk.Toplevel):
         self.api_key = tk.StringVar(value=values["LLM_API_KEY"])
         self.user_prompt = values["LLM_USER_PROMPT"]
         self.ui_language = tk.StringVar(value=next(label for label, code in UI_LANGUAGE_OPTIONS.items() if code == values["UI_LANGUAGE"]))
-        self.cookies_browser = tk.StringVar(value=next(label for label, code in COOKIE_BROWSER_OPTIONS.items() if code == values["YTDLP_COOKIES_BROWSER"]))
         self._build()
         self.protocol("WM_DELETE_WINDOW", self.destroy)
 
@@ -405,7 +422,6 @@ class SettingsDialog(tk.Toplevel):
             (self.parent.t("model"), self.model, "entry"),
             (self.parent.t("api_key"), self.api_key, "secret"),
             (self.parent.t("ui_language"), self.ui_language, "ui_language"),
-            (self.parent.t("browser_cookies"), self.cookies_browser, "cookies"),
         ]):
             ttk.Label(frame, text=label).grid(row=row, column=0, sticky="w", pady=6)
             if widget == "combo":
@@ -413,27 +429,25 @@ class SettingsDialog(tk.Toplevel):
                 control.bind("<<ComboboxSelected>>", self._provider_changed)
             elif widget == "ui_language":
                 control = ttk.Combobox(frame, textvariable=variable, values=list(UI_LANGUAGE_OPTIONS), state="readonly", width=46)
-            elif widget == "cookies":
-                control = ttk.Combobox(frame, textvariable=variable, values=list(COOKIE_BROWSER_OPTIONS), state="readonly", width=46)
             else:
                 control = ttk.Entry(frame, textvariable=variable, width=49, show="•" if widget == "secret" else "")
             control.grid(row=row, column=1, sticky="ew", pady=6)
 
-        ttk.Label(frame, text="Translation instructions (lower priority)").grid(row=6, column=0, sticky="nw", pady=6)
+        ttk.Label(frame, text="Translation instructions (lower priority)").grid(row=5, column=0, sticky="nw", pady=6)
         self.user_prompt_box = tk.Text(frame, width=46, height=5, wrap="word")
-        self.user_prompt_box.grid(row=6, column=1, sticky="ew", pady=6)
+        self.user_prompt_box.grid(row=5, column=1, sticky="ew", pady=6)
         self.user_prompt_box.insert("1.0", self.user_prompt)
         ttk.Label(
             frame,
             text="Optional style or terminology preferences. The app's system rules always take priority and keep subtitle timing, order, and separator formatting intact.",
             wraplength=420,
             foreground="#475569",
-        ).grid(row=7, column=0, columnspan=2, sticky="w", pady=(2, 8))
+        ).grid(row=6, column=0, columnspan=2, sticky="w", pady=(2, 8))
         self.help_label = ttk.Label(frame, wraplength=420, foreground="#475569")
-        self.help_label.grid(row=8, column=0, columnspan=2, sticky="w", pady=(2, 14))
+        self.help_label.grid(row=7, column=0, columnspan=2, sticky="w", pady=(2, 14))
         self._provider_changed()
         buttons = ttk.Frame(frame)
-        buttons.grid(row=9, column=0, columnspan=2, sticky="e")
+        buttons.grid(row=8, column=0, columnspan=2, sticky="e")
         ttk.Button(buttons, text=self.parent.t("close"), command=self.destroy).grid(row=0, column=0, padx=(0, 8))
         ttk.Button(buttons, text=self.parent.t("save"), command=self._save).grid(row=0, column=1)
 
@@ -442,16 +456,16 @@ class SettingsDialog(tk.Toplevel):
         if provider == "ollama":
             if self.base_url.get().endswith("/v1"):
                 self.base_url.set("http://localhost:11434")
-            self.help_label.configure(text="Ollama uses its local server. An API key is usually not needed. Example model: qwen2.5:7b\n\n" + self.parent.t("cookies_help"))
+            self.help_label.configure(text="Ollama uses its local server. An API key is usually not needed. Example model: qwen2.5:7b")
         elif provider == "gemini":
             self.base_url.set("https://generativelanguage.googleapis.com/v1beta")
             if self.model.get() in {"", "gpt-4o-mini", "qwen2.5:7b"}:
                 self.model.set("gemini-3.5-flash")
-            self.help_label.configure(text="Gemini uses your Google AI Studio API key. The key is stored only in this app's ignored .env file.\n\n" + self.parent.t("cookies_help"))
+            self.help_label.configure(text="Gemini uses your Google AI Studio API key. The key is stored only in this app's ignored .env file.")
         else:
             if self.base_url.get() in {"http://localhost:11434", "https://generativelanguage.googleapis.com/v1beta"}:
                 self.base_url.set("https://api.openai.com/v1")
-            self.help_label.configure(text="Works with OpenAI and compatible APIs. Your key is stored only in this app's ignored .env file.\n\n" + self.parent.t("cookies_help"))
+            self.help_label.configure(text="Works with OpenAI and compatible APIs. Your key is stored only in this app's ignored .env file.")
 
     def _save(self) -> None:
         if not self.base_url.get().strip() or not self.model.get().strip():
@@ -464,7 +478,6 @@ class SettingsDialog(tk.Toplevel):
             "LLM_API_KEY": self.api_key.get().strip(),
             "LLM_USER_PROMPT": self.user_prompt_box.get("1.0", "end-1c").strip(),
             "UI_LANGUAGE": UI_LANGUAGE_OPTIONS[self.ui_language.get()],
-            "YTDLP_COOKIES_BROWSER": COOKIE_BROWSER_OPTIONS[self.cookies_browser.get()],
         })
         self.parent.set_ui_language(UI_LANGUAGE_OPTIONS[self.ui_language.get()])
         self.parent.log(self.parent.t("saved"))
@@ -648,8 +661,6 @@ class CaptionApp(tk.Tk):
 
     def _download_video(self, url: str) -> None:
         try:
-            import yt_dlp
-
             downloads_dir = DOWNLOADS_DIR
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             output_dir = downloads_dir / f"video_caption_{timestamp}"
@@ -659,43 +670,50 @@ class CaptionApp(tk.Tk):
                 attempt += 1
             output_dir.mkdir(parents=True)
 
-            app = self
-
-            class DownloadLogger:
-                def debug(self, _message: str) -> None:
-                    pass
-
-                def warning(self, message: str) -> None:
-                    app.events.put(("log", f"yt-dlp: {message}"))
-
-                def error(self, message: str) -> None:
-                    app.events.put(("log", f"yt-dlp: {message}"))
-
-            def progress_hook(data: dict) -> None:
-                if data.get("status") == "downloading":
-                    percent = clean_download_percent(data.get("_percent_str", ""))
-                    if percent:
-                        app.events.put(("status", f"{app.t('downloading')} {percent}"))
-
-            options = {
-                # Prefer a single audio+video stream so transcription works without FFmpeg.
-                "format": "best[acodec!=none][vcodec!=none]/best",
-                "outtmpl": str(output_dir / "video.%(ext)s"),
-                "noplaylist": True,
-                "quiet": True,
-                "no_warnings": True,
-                "logger": DownloadLogger(),
-                "progress_hooks": [progress_hook],
-            }
+            yt_dlp_path = bundled_yt_dlp_path()
+            command = [
+                str(yt_dlp_path),
+                "--ignore-config",
+                "--no-playlist",
+                "--newline",
+                "--no-colors",
+                "--encoding", "utf-8",
+                "--windows-filenames",
+                "--output", str(output_dir / "video.%(ext)s"),
+            ]
             if deno_path := bundled_deno_path():
-                # Current yt-dlp YouTube support requires an external JS
-                # runtime. The portable Windows build includes Deno.
-                options["js_runtimes"] = {"deno": {"path": str(deno_path)}}
-            cookies_browser = SettingsStore.load()["YTDLP_COOKIES_BROWSER"].strip()
-            if cookies_browser:
-                options["cookiesfrombrowser"] = (cookies_browser,)
-            with yt_dlp.YoutubeDL(options) as downloader:
-                downloader.extract_info(url, download=True)
+                command.extend(("--js-runtimes", f"deno:{deno_path}"))
+            command.append(url)
+
+            creation_flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+            process = subprocess.Popen(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                creationflags=creation_flags,
+            )
+            recent_output: list[str] = []
+            if process.stdout is None:
+                raise RuntimeError("Could not read output from the bundled downloader.")
+            for raw_line in process.stdout:
+                line = clean_terminal_text(raw_line)
+                if not line:
+                    continue
+                recent_output.append(line)
+                recent_output = recent_output[-20:]
+                percent = clean_download_percent(line)
+                if percent and "[download]" in line:
+                    self.events.put(("status", f"{self.t('downloading')} {percent}"))
+                elif "[download]" not in line or "Destination:" in line:
+                    self.events.put(("log", f"yt-dlp: {line}"))
+
+            return_code = process.wait()
+            if return_code != 0:
+                details = "\n".join(recent_output[-10:])
+                raise RuntimeError(details or f"yt-dlp exited with code {return_code}.")
 
             video_extensions = {".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v", ".flv", ".ts"}
             media_files = [path for path in output_dir.iterdir() if path.is_file() and path.suffix.lower() in video_extensions]

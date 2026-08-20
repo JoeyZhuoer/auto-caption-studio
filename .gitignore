@@ -12,6 +12,10 @@ venv/
 build_artifacts/
 *.spec
 
+# Locally downloaded third-party executables. Release builds download verified
+# pinned versions and package them in the portable ZIP.
+tools/
+
 # Generated subtitle exports and local logs
 *.ass
 *.srt

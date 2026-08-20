@@ -43,13 +43,13 @@ Whisper transcription uses **CUDA**. Install the required NVIDIA CUDA libraries 
 
 If CUDA reports that `cublas64_12.dll` is missing, install the NVIDIA CUDA 12.x toolkit and the compatible cuDNN runtime, then restart the application. The CUDA `bin` folder containing `cublas64_12.dll` must be on Windows `PATH`. Current Faster-Whisper guidance uses CUDA 12 and cuDNN 9; library requirements can differ by installed CTranslate2 version, so use the Faster-Whisper documentation for the version you install. The Microsoft Visual C++ runtime is also required on Windows.
 
-You can also paste a public video URL and use **Download video**. The app uses `yt-dlp`, which supports popular sites including YouTube and Bilibili. Every URL download is saved to a new local folder named `downloads/video_caption_YYYYMMDD_HHMMSS`; both the downloaded video and generated caption file stay together there. Download only content you own or are authorized to use.
+You can also paste a public video URL and use **Download video**. The app calls the bundled standalone `tools/yt-dlp.exe`, which supports popular sites including YouTube and Bilibili; no separate yt-dlp installation or configuration is required. The accompanying `tools/deno.exe` supplies YouTube's JavaScript challenge runtime automatically. Format selection is left to yt-dlp's adaptive default, matching a normal `yt-dlp URL` command. Every URL download is saved to a new local folder named `downloads/video_caption_YYYYMMDD_HHMMSS`; both the downloaded video and generated caption file stay together there. Download only content you own or are authorized to use.
 
 The first URL download shows a one-time disclaimer. Continuing confirms that you have permission to download the content and will follow platform terms, copyright, and applicable laws. The app does not bypass paywalls, DRM, regional restrictions, or access controls.
 
 ### YouTube HTTP 403
 
-YouTube may deny automated downloads even when the URL works in a browser. First update the app dependencies with `pip install -U -r requirements.txt`. If you can play the video while signed in to Chrome, Edge, Firefox, Brave, or Opera, select that browser in **Settings → Browser cookies for video downloads** and retry. This option is off by default: the app does not copy or save cookies and reads the currently local browser session only during the download. YouTube access policies can still prevent a download.
+YouTube may deny automated downloads even when the URL works in a browser. Auto Caption Studio calls its bundled downloader and JavaScript runtime directly, so users do not need to install or configure yt-dlp. It does not read or use browser cookies. YouTube access policies can still prevent a download.
 
 The app does not include an API key. Open **Settings** in the application to enter your own provider, endpoint, model, key, and interface language. These are saved only in `.env`, which is included in `.gitignore` and must never be committed. The interface supports English, Simplified Chinese, Japanese, and Spanish.
 
@@ -73,9 +73,10 @@ Extract the entire archive, keep the `AutoCaptionStudio` folder intact, and run
 `AutoCaptionStudio.exe`. Do not move the executable out of that folder: its
 included runtime files live in the `_internal` directory beside it.
 
-The portable build includes the Python application, yt-dlp's YouTube EJS
-component, and the Deno JavaScript runtime required by current yt-dlp YouTube
-support. It does not include Whisper models or NVIDIA's system CUDA libraries.
+The portable build includes the Python application, the standalone Windows
+`yt-dlp.exe`, and the Deno JavaScript runtime required by current yt-dlp
+YouTube support. Users do not need to install or configure yt-dlp. It does not
+include Whisper models or NVIDIA's system CUDA libraries.
 The first transcription downloads the selected Whisper model. CUDA 12.x and
 compatible cuDNN are still needed for GPU transcription as described below.
 Some video sites also require a local FFmpeg installation for `yt-dlp` to
